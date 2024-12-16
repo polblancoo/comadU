@@ -1,14 +1,9 @@
-use anyhow::{Context, Result};
 use clap::{Arg, ArgAction, Command};
 use colored::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-
-mod buscarCheat;
 mod buscarCrate;
-
-use buscarCheat::buscar_cheat;
 use buscarCrate::buscar_crate;
 
 const COMANDOS_FILE: &str = "comandosUtiles.toml";
@@ -79,7 +74,7 @@ fn list_comandos(file_path: &str) {
         println!("| {} |", seccion.cyan());
         println!("+-------------------------+");
         for (nombre, comando) in claves {
-            println!("\t\t{}: {}", nombre.yellow(), comando);
+            println!("  {}: {}", nombre.yellow(), comando);
         }
     }
 }
@@ -124,25 +119,7 @@ fn delete_comando(file_path: &str, seccion: &str, nombre: &str) {
     }
 }
 
-fn list_comandos_seccion(file_path: &str, seccion: &str) {
-    let comandos = load_comandos(file_path);
-    if let Some(seccion_comandos) = comandos.get(seccion) {
-        if seccion_comandos.is_empty() {
-            println!("No hay comandos en la sección '{}'.", seccion);
-            return;
-        }
-
-        println!("Comandos en la sección '{}':", seccion.cyan());
-        println!("+-------------------------+");
-        for (nombre, comando) in seccion_comandos {
-            println!("\t\t{}: {}", nombre.yellow(), comando);
-        }
-    } else {
-        eprintln!("{}: La sección '{}' no existe", "Error".red(), seccion);
-    }
-}
-
-fn main() -> Result<()> {
+fn main() {
     let file_path = get_comandos_file_path();
 
     let matches = Command::new("Comandos Utiles")
@@ -164,20 +141,12 @@ fn main() -> Result<()> {
                 .help("Lista todos los comandos"),
         )
         .arg(
-            Arg::new("lc")
-                .long("lc")
-                .short('c')
-                .value_name("SECCION")
-                .help("Lista comandos de una sección específica"),
-        )
-        .subcommand(
-            Command::new("crateSearch")
-                .about("Buscar información de crates")
-                .arg(
-                    Arg::new("buscar")
-                        .help("Busca un crate en crates.io")
-                        .required(true),
-                ),
+            Arg::new("buscar")
+                .long("buscar")
+                .short('b')
+                .value_name("CRATE")
+                .help("Busca un crate en crates.io")
+                .action(ArgAction::Set),
         )
         .subcommand(
             Command::new("add")
@@ -204,36 +173,16 @@ fn main() -> Result<()> {
                         .help("Nombre del comando a eliminar"),
                 ),
         )
-        .subcommand(
-            Command::new("cheatSearch")
-                .about("Busca cheat sheets de comandos")
-                .arg(
-                    Arg::new("comando")
-                        .required(true)
-                        .help("Comando a buscar en cheat.sh"),
-                )
-                .arg(
-                    Arg::new("seccion")
-                        .long("seccion")
-                        .short('s')
-                        .help("Sección específica a mostrar")
-                        .required(false),
-                ),
-        )
         .get_matches();
 
     if matches.get_flag("ls") {
         list_secciones(&file_path);
     } else if matches.get_flag("list") {
         list_comandos(&file_path);
-    } else if let Some(seccion) = matches.get_one::<String>("lc") {
-        list_comandos_seccion(&file_path, seccion);
+    } else if let Some(crate_name) = matches.get_one::<String>("buscar") {
+        buscar_crate(crate_name);
     } else {
         match matches.subcommand() {
-            Some(("crateSearch", sub_m)) => {
-                let crate_name = sub_m.get_one::<String>("buscar").unwrap();
-                buscar_crate(crate_name);
-            }
             Some(("add", sub_m)) => {
                 let seccion = sub_m.get_one::<String>("seccion").unwrap();
                 let nombre = sub_m.get_one::<String>("nombre").unwrap();
@@ -245,14 +194,6 @@ fn main() -> Result<()> {
                 let nombre = sub_m.get_one::<String>("nombre").unwrap();
                 delete_comando(&file_path, seccion, nombre);
             }
-            Some(("cheatSearch", sub_m)) => {
-                let comando = sub_m
-                    .get_one::<String>("comando")
-                    .context("Se requiere un comando")?;
-                let seccion = sub_m.get_one::<String>("seccion");
-
-                buscar_cheat(comando, seccion.map(|s| s.as_str()))?;
-            }
             _ => {
                 println!(
                     "{}: Usa '--help' para ver las opciones disponibles",
@@ -261,6 +202,4 @@ fn main() -> Result<()> {
             }
         }
     }
-
-    Ok(())
 }
